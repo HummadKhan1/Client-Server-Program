@@ -1,1 +1,116 @@
+package Project2;
 
+import java.io.*;
+import java.net.Socket;
+import java.util.Scanner;
+
+public class Client {
+    private Socket socket;
+    private String name;
+    private BufferedReader bufferedReader;
+    private BufferedWriter bufferedWriter;
+
+    public Client(Socket s, String n) { // constructor
+        try {
+            this.socket = s;
+            this.name = n;
+            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(s.getOutputStream()));
+            this.bufferedReader = new BufferedReader(new InputStreamReader(s.getInputStream()));
+        } catch (IOException e) {
+            closeAll(s, bufferedReader, bufferedWriter);
+        }
+    }
+    //listens for server
+    public void listen() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String message;
+
+                while (socket.isConnected()) {
+                    try {
+                        message = bufferedReader.readLine();
+                        System.out.println(message);
+                    } catch (IOException e) {
+                        closeAll(socket, bufferedReader, bufferedWriter);
+                    }
+                }
+            }
+        }).start();
+    }
+
+    public void sendMessage() {
+        try {
+            bufferedWriter.write(name);
+            bufferedWriter.newLine();
+            bufferedWriter.flush();
+
+            Scanner scanner = new Scanner(System.in);
+            while (socket.isConnected()) {
+                String message = scanner.nextLine();
+                //stops the process
+                if (message.equals("Stop")) {
+                    System.out.println("All connections stopping...");
+                    bufferedWriter.write(message);
+                    bufferedWriter.newLine();
+                    bufferedWriter.flush();
+                    System.out.println("Connection closing...");
+                    closeAll(socket, bufferedReader, bufferedWriter);
+                    scanner.close();
+                    break;
+                }
+                bufferedWriter.write(name + ": " + message);
+                bufferedWriter.newLine();
+                bufferedWriter.flush();
+            }
+
+        } catch (IOException e) {
+            closeAll(socket, bufferedReader, bufferedWriter);
+        }
+    }
+
+    private void closeAll(Socket s, BufferedReader bR, BufferedWriter bW) { //closes all processes
+        try {
+            // closes BufferedReader
+            if (bR != null)
+                bR.close();
+            // closes BufferedWriter
+            if (bW != null)
+                bW.close();
+            // closes the Socket
+            if (s != null)
+                s.close();
+
+            System.out.println("Process " + name + " has been closed.");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+
+        Scanner scanner = new Scanner(System.in);
+        //immediately asks for user input
+        System.out.println("Enter your name: ");
+
+        String name;
+        //loop until valid name
+        while (true) {
+            name = scanner.nextLine();
+            if (name == null || name.isEmpty()) {
+                System.out.println("Name can't be NULL");
+                System.out.println("Enter your name: ");
+                continue;
+            }
+            break;
+        }
+        System.out.println("Type 'send # MESSAGE' replacing # with the process number, to send message to specific process");
+        System.out.println("Type 'send 0 MESSAGE', to send message to all other processes");
+        System.out.println("Type 'Stop', to stop program");
+
+        Socket socket = new Socket("localhost", 1234);
+        Client client = new Client(socket, name);
+        client.listen();
+        client.sendMessage();
+    }
+}
